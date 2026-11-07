@@ -9,7 +9,13 @@ import {
   goOfflineServer,
   isServerAvailable,
 } from "../lib/firebase";
-import { supabase } from "../lib/supabase";
+import {
+  fetchPublicLobbies as getPublicLobbies,
+  fetchTeamsByUser,
+  fetchAuctions,
+  deleteTeam,
+  deleteAuction,
+} from "../lib/db";
 import { generateRoomCode, normalizeRoomCode, isHotspotRoomCode } from "../lib/roomCodes";
 import { ref, remove } from "firebase/database";
 import {
@@ -153,7 +159,7 @@ const LandingPage = () => {
   // Client-side cache for Public Lobbies to stop redundant Supabase egress on frequent renders
   const publicLobbiesCacheRef = useRef({ data: null, timestamp: 0 });
 
-  // Fetch Public Lobbies directly from Supabase (optimized egress, minimal columns)
+  // Fetch Public Lobbies directly from Neon API (optimized egress, minimal columns)
   const fetchPublicLobbies = async (force = false) => {
     const now = Date.now();
     if (!force && publicLobbiesCacheRef.current.data && now - publicLobbiesCacheRef.current.timestamp < 30000) {
@@ -163,53 +169,37 @@ const LandingPage = () => {
 
     setLobbiesLoading(true);
     try {
-      if (supabase) {
-        const THREE_HOURS_MS = 3 * 60 * 60 * 1000;
-        const threeHoursAgoISO = new Date(
-          Date.now() - THREE_HOURS_MS,
-        ).toISOString();
-
-        // Optimized egress: Exclude heavy player_order and banned_players arrays (server is inside settings)
-        const { data: supabaseRooms, error } = await supabase
-          .from("auctions")
-          .select("id, host_name, status, auction_type, players, squad_limit, settings, created_at")
-          .in("status", ["waiting", "active"])
-          .eq("is_public", true)
-          .eq("host_online", true)
-          .gte("created_at", threeHoursAgoISO)
-          .order("created_at", { ascending: false });
-          
-        if (!error && supabaseRooms && supabaseRooms.length > 0) {
-          const list = supabaseRooms.map((r) => {
-            const players = r.players || [];
-            const uniquePlayers = [];
-            const seenIds = new Set();
-            players.forEach((p) => {
-              const pid = p?.id || p?.userId;
-              if (pid && !seenIds.has(pid)) {
-                seenIds.add(pid);
-                uniquePlayers.push(p);
-              }
-            });
-
-            const host =
-              uniquePlayers.find((p) => p.isHost) || uniquePlayers[0];
-            return {
-              roomId: r.id,
-              server: getAuctionServer(r),
-              hostName: r.host_name || host?.name || "Manager",
-              status: r.status,
-              auctionType: r.auction_type || "mega",
-              players: uniquePlayers,
-              squadLimit: toFiniteNumber(r.squad_limit, 25),
-              settings: r.settings || {},
-            };
+      const supabaseRooms = await getPublicLobbies();
+      if (supabaseRooms && supabaseRooms.length > 0) {
+        const list = supabaseRooms.map((r) => {
+          const players = r.players || [];
+          const uniquePlayers = [];
+          const seenIds = new Set();
+          players.forEach((p) => {
+            const pid = p?.id || p?.userId;
+            if (pid && !seenIds.has(pid)) {
+              seenIds.add(pid);
+              uniquePlayers.push(p);
+            }
           });
-          publicLobbiesCacheRef.current = { data: list, timestamp: Date.now() };
-          setPublicRooms(list);
-          setLobbiesLoading(false);
-          return;
-        }
+
+          const host =
+            uniquePlayers.find((p) => p.isHost) || uniquePlayers[0];
+          return {
+            roomId: r.id,
+            server: getAuctionServer(r),
+            hostName: r.host_name || host?.name || "Manager",
+            status: r.status,
+            auctionType: r.auction_type || "mega",
+            players: uniquePlayers,
+            squadLimit: toFiniteNumber(r.squad_limit, 25),
+            settings: r.settings || {},
+          };
+        });
+        publicLobbiesCacheRef.current = { data: list, timestamp: Date.now() };
+        setPublicRooms(list);
+        setLobbiesLoading(false);
+        return;
       }
       setPublicRooms([]);
     } catch {
@@ -217,6 +207,7 @@ const LandingPage = () => {
     } finally {
       setLobbiesLoading(false);
     }
+  }
   };
 
   useEffect(() => {
@@ -229,7 +220,7 @@ const LandingPage = () => {
 
   const fetchHistory = useCallback(async (force = false) => {
     const userId = user?.uid;
-    if (!userId || !supabase) {
+    if (!userId) {
       setHistoryData([]);
       setHistoryError(null);
       return;
@@ -249,14 +240,14 @@ const LandingPage = () => {
     setHistoryError(null);
     try {
       // Optimized egress: Select only needed columns for history cards and limit to recent 20
-      const { data: supabaseTeams, error: teamsError } = await supabase
+      const supabaseTeams = await fetchTeamsByUser(userId);
         .from("teams")
         .select("id, auction_id, user_id, team_id, team_name, budget_remaining, spent, squad, created_at")
         .eq("user_id", userId)
         .order("created_at", { ascending: false })
         .limit(20);
 
-      if (teamsError) throw teamsError;
+      // teamsError handled by API
 
       if (!supabaseTeams || supabaseTeams.length === 0) {
         setHistoryData([]);
@@ -269,12 +260,12 @@ const LandingPage = () => {
       ].filter(Boolean);
 
       // Optimized egress: Exclude player_order and massive player collections (server is in settings)
-      const { data: supabaseAuctions, error: auctionsError } = await supabase
+      const supabaseAuctions = await fetchAuctions(auctionIds);
         .from("auctions")
         .select("id, settings, status, auction_type, overseas_limit, squad_limit, created_at")
         .in("id", auctionIds);
 
-      if (auctionsError) throw auctionsError;
+      // auctionsError handled by API
 
       const auctionMap = {};
       (supabaseAuctions || []).forEach((a) => {
@@ -388,21 +379,8 @@ const LandingPage = () => {
     setSessionToDelete(null);
 
     try {
-      if (supabase) {
-        // 1. Delete user's team row from Supabase
-        const { error: teamError } = await supabase
-          .from("teams")
-          .delete()
-          .eq("id", teamDocId);
-        if (teamError) throw teamError;
-
-        // 2. Delete the auction room itself from Supabase
-        const { error: roomError } = await supabase
-          .from("auctions")
-          .delete()
-          .eq("id", roomId);
-        if (roomError) throw roomError;
-      }
+      await deleteTeam(teamDocId);
+      await deleteAuction(roomId);
     } catch (err) {
       console.error("[history] Failed to delete auction session", err);
       // Roll back the optimistic removal if the server delete failed
@@ -1906,3 +1884,6 @@ const LandingPage = () => {
 };
 
 export default LandingPage;
+
+
+

@@ -9,6 +9,17 @@ import {
   rtdb,
   waitForServerConnection,
 } from '../lib/firebase';
+import {
+  fetchAuction,
+  fetchAuctions,
+  fetchTeamsByAuction,
+  insertAuction,
+  upsertAuction,
+  updateAuction,
+  deleteAuction,
+  upsertTeams,
+  deleteTeam,
+} from '../lib/db';
 import { supabase } from '../lib/supabase';
 import { IPL_PLAYERS } from '../data/players';
 import { evaluateBotBid } from '../lib/botEngine';
@@ -329,7 +340,7 @@ export const AuctionProvider = ({ children }) => {
         }
 
         if (playerDetails.team) {
-          await supabase.from('teams').upsert({
+          await upsertTeams({
             id: `${roomId}_${userId}`,
             auction_id: roomId,
             user_id: userId,
@@ -397,7 +408,7 @@ export const AuctionProvider = ({ children }) => {
         }));
 
         if (supabaseTeams.length > 0) {
-          await supabase.from('teams').upsert(supabaseTeams);
+          await upsertTeams(supabaseTeams);
         }
       }
     } catch (err) {
@@ -477,7 +488,7 @@ export const AuctionProvider = ({ children }) => {
 
     if (supabase) {
       try {
-        await supabase.from('auctions').update({ status: 'active' }).eq('id', roomId);
+        await updateAuction(roomId, { status: 'active' });
       } catch (sErr) {
         // Non-fatal: RTDB status remains authoritative for the live auction.
         console.warn('[auction] Failed to mirror active status to Supabase', sErr);
@@ -600,7 +611,7 @@ export const AuctionProvider = ({ children }) => {
         /*
         if (supabase) {
           try {
-            await supabase.from('teams').upsert({
+            await upsertTeams({
               id: teamDocId,
               auction_id: roomId,
               user_id: auctionState.highBidderId,
@@ -918,7 +929,7 @@ export const AuctionProvider = ({ children }) => {
       /*
       try {
         if (supabase) {
-          await supabase.from('auctions').update({ players: updatedPlayers, banned_players: updatedBanned }).eq('id', roomId);
+          await updateAuction(roomId, { players: updatedPlayers, banned_players: updatedBanned });
         }
       } catch (sErr) {}
       */
@@ -1120,7 +1131,7 @@ export const AuctionProvider = ({ children }) => {
           try {
             let data = null;
             if (supabase) {
-              const { data: sData } = await supabase.from('auctions').select('*').eq('id', auctionId).maybeSingle();
+              const sData = await fetchAuction(auctionId);
               if (sData) {
                 data = mapSupabaseAuction(sData);
               }
@@ -1181,7 +1192,7 @@ export const AuctionProvider = ({ children }) => {
           try {
             let teamsArr = [];
             if (supabase) {
-              const { data: sTeams } = await supabase.from('teams').select('*').eq('auction_id', auctionId);
+              const sTeams = await fetchTeamsByAuction(auctionId);
               if (sTeams && sTeams.length > 0) {
                 teamsArr = sTeams.map(t => ({
                   id: t.id,
@@ -1403,7 +1414,7 @@ export const AuctionProvider = ({ children }) => {
     /*
     try {
       if (supabase) {
-        await supabase.from('auctions').update({ players: updatedPlayers }).eq('id', roomId);
+        await updateAuction(roomId, { players: updatedPlayers });
       }
     } catch (sErr) {}
     */
@@ -1571,7 +1582,7 @@ export const AuctionProvider = ({ children }) => {
     /*
     try {
       if (supabase) {
-        await supabase.from('auctions').update({ players: updatedPlayers }).eq('id', roomId);
+        await updateAuction(roomId, { players: updatedPlayers });
       }
     } catch (sErr) {}
     */
@@ -1603,7 +1614,7 @@ export const AuctionProvider = ({ children }) => {
     /*
     try {
       if (supabase) {
-        await supabase.from('auctions').update({ players: updatedPlayers }).eq('id', roomId);
+        await updateAuction(roomId, { players: updatedPlayers });
       }
     } catch (sErr) {}
     */
@@ -1655,7 +1666,7 @@ export const AuctionProvider = ({ children }) => {
     /*
     try {
       if (supabase) {
-        await supabase.from('auctions').update({ players: updatedPlayers }).eq('id', roomId);
+        await updateAuction(roomId, { players: updatedPlayers });
       }
     } catch (sErr) {}
     */

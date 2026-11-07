@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate, Link, useParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { db } from '../lib/firebase';
-import { supabase } from '../lib/supabase';
+import { fetchAdminAuctions, deleteAuction } from '../lib/db';
 import { collection, getDocs, deleteDoc, updateDoc, doc, query, orderBy } from 'firebase/firestore';
 import {
   Home,
@@ -290,34 +290,13 @@ const AdminPanel = () => {
         return { fbList, fsCount };
       })();
 
-      // 2. Fetch Supabase Auctions with Exact Counts (no 1k ceiling)
+      // 2. Fetch Auctions with Exact Counts via Neon API
       const supabasePromises = (async () => {
         try {
-          const [totalRes, activeRes, completedRes, listRes] = await Promise.all([
-            supabase.from('auctions').select('*', { count: 'exact', head: true }),
-            supabase.from('auctions').select('*', { count: 'exact', head: true }).neq('status', 'completed'),
-            supabase.from('auctions').select('*', { count: 'exact', head: true }).eq('status', 'completed'),
-            supabase
-              .from('auctions')
-              .select('id, host_name, status, auction_type, settings, created_at')
-              .order('created_at', { ascending: false })
-              .limit(100)
-          ]);
-
-          if (listRes.error) throw listRes.error;
-
-          const exactTotal = typeof totalRes.count === 'number' ? totalRes.count : (listRes.data?.length || 0);
-          const exactActive = typeof activeRes.count === 'number' ? activeRes.count : (listRes.data?.filter((a) => (a.status || '').toLowerCase() !== 'completed').length || 0);
-          const exactCompleted = typeof completedRes.count === 'number' ? completedRes.count : (listRes.data?.filter((a) => (a.status || '').toLowerCase() === 'completed').length || 0);
-
-          return {
-            auctions: listRes.data || [],
-            totalCount: exactTotal,
-            activeCount: exactActive,
-            completedCount: exactCompleted,
-          };
+          const sbData = await fetchAdminAuctions();
+          return sbData;
         } catch (sbErr) {
-          console.warn('Supabase fetch error:', sbErr);
+          console.warn('Auctions fetch error:', sbErr);
           return {
             auctions: [],
             totalCount: 0,
@@ -516,7 +495,7 @@ const AdminPanel = () => {
   const handleDeleteAuction = async (id) => {
     setIsDeleting(true);
     try {
-      const { error: sbErr } = await supabase.from('auctions').delete().eq('id', id);
+      const { error: sbErr } = await deleteAuction(id);
       if (sbErr) throw sbErr;
 
       try {
@@ -947,3 +926,4 @@ const AdminPanel = () => {
 };
 
 export default AdminPanel;
+

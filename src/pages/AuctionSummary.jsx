@@ -5,7 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { IPL_PLAYERS } from '../data/players';
 import { TEAMS } from '../data/teams';
 import { toPng } from 'html-to-image';
-import { supabase } from '../lib/supabase';
+import { fetchAuction, fetchTeamsByAuction } from '../lib/db';
 import { db } from '../lib/firebase';
 import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import {
@@ -123,20 +123,20 @@ const AuctionSummary = () => {
       setSummaryLoading(true);
       setSummaryError(null);
       try {
-        if (supabase) {
+        if (true) {
           // Optimized egress: Exclude heavy player_order column
-          const { data: aData, error: auctionError } = await supabase
+          const aData = await fetchAuction(id);
             .from('auctions')
             .select('id, host_id, host_name, status, auction_type, squad_limit, overseas_limit, players, settings')
             .eq('id', id)
             .maybeSingle();
-          if (auctionError) throw auctionError;
+          // auctionError handled by API
 
-          const { data: tData, error: teamsError } = await supabase
+          const tData = await fetchTeamsByAuction(id);
             .from('teams')
             .select('id, auction_id, user_id, team_id, team_name, budget_remaining, spent, squad')
             .eq('auction_id', id);
-          if (teamsError) throw teamsError;
+          // teamsError handled by API
 
           if (aData && isMounted) {
             setDbAuction({

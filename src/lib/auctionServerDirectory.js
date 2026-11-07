@@ -1,4 +1,8 @@
-import { supabase } from './supabase';
+import {
+  fetchAuction,
+  insertAuction,
+  upsertAuction,
+} from './db';
 import {
   getAuctionServer,
   getPreferredServer,
@@ -6,29 +10,27 @@ import {
 } from './auctionServers';
 
 const directoryCache = new Map();
-const CACHE_TTL_MS = 60 * 1000; // 1 minute in-memory cache to eliminate duplicate egress
+const CACHE_TTL_MS = 60 * 1000; // 1-minute in-memory cache
 
-/** Read one auction directory row. Returns null when Supabase is unavailable. */
+/** Read one auction directory row. Returns null when API is unavailable. */
 export async function fetchAuctionRecord(roomId) {
-  if (!supabase || !roomId) return null;
+  if (!roomId) return null;
 
   const cached = directoryCache.get(roomId);
   if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
     return cached.record;
   }
 
-  // Optimize egress: Only request server routing columns, avoiding heavy JSON blobs like player_order
-  const { data, error } = await supabase
-    .from('auctions')
-    .select('id, settings, status')
-    .eq('id', roomId)
-    .maybeSingle();
-
-  if (error) throw error;
-  if (data) {
-    directoryCache.set(roomId, { record: data, timestamp: Date.now() });
+  try {
+    const data = await fetchAuction(roomId);
+    if (data) {
+      directoryCache.set(roomId, { record: data, timestamp: Date.now() });
+    }
+    return data || null;
+  } catch (err) {
+    console.warn('[directory] fetchAuctionRecord failed', err);
+    return null;
   }
-  return data || null;
 }
 
 const LOOKUP_TIMEOUT_MS = 1500;
@@ -44,12 +46,8 @@ function withLookupTimeout(promise, ms) {
 }
 
 /**
- * Resolve which RTDB a room belongs to.
- *
- * The Supabase directory is authoritative, so a `?server=` hint is verified
- * when the lookup responds quickly. If Supabase is slow/down, the hint wins
- * after a short timeout so room entry never hangs on the directory; a missing
- * directory row also falls back to the hint.
+ * Resolve which RTDB server a room belongs to.
+ * Falls back to hint or preferred server if the API is slow/down.
  */
 export async function resolveRoomServer(roomId, hint = null) {
   const hinted = normalizeServer(hint, null);
@@ -62,62 +60,18 @@ export async function resolveRoomServer(roomId, hint = null) {
   return getPreferredServer();
 }
 
-function isMissingServerColumnError(error) {
-  if (!error) return false;
-  if (error.code === 'PGRST204' || error.code === '42703') return true;
-  return /server.*column|column.*server/i.test(error.message || '');
-}
-
 /**
- * Upsert an auction row with its server.
- *
- * The preferred schema has a top-level `server` column. Until that optional
- * migration is applied, the first write fails with a PostgREST column error;
- * retry with the server stored in the existing `settings` JSON instead. This
- * keeps deployment order irrelevant and makes the app work immediately.
- */
-async function writeAuction(payload, server, mode) {
-  if (!supabase) return { error: null, usedServerColumn: false };
-
-  const resolvedServer = normalizeServer(server);
-  const settings = {
-    ...(payload.settings || {}),
-    server: resolvedServer,
-  };
-  const withColumn = {
-    ...payload,
-    server: resolvedServer,
-    settings,
-  };
-  const write = (row) =>
-    mode === 'insert'
-      ? supabase.from('auctions').insert(row)
-      : supabase.from('auctions').upsert(row);
-
-  const first = await write(withColumn);
-  if (!first.error) {
-    return { ...first, usedServerColumn: true };
-  }
-  if (!isMissingServerColumnError(first.error)) {
-    return { ...first, usedServerColumn: false };
-  }
-
-  return write({ ...payload, settings }).then((result) => ({
-    ...result,
-    usedServerColumn: false,
-  }));
-}
-
-/** Update (or create) an existing directory row. Used for room-state flushes. */
-export async function upsertAuctionWithServer(payload, server) {
-  return writeAuction(payload, server, 'upsert');
-}
-
-/**
- * Insert a brand-new directory row. The primary key on `auctions.id` makes this
- * the cross-server uniqueness guard for room codes: a racing insert fails with
- * PostgreSQL 23505 instead of silently overwriting the other room.
+ * Insert a brand-new auction directory row.
+ * Returns { error } — a 23505/409 error means the room code is taken.
  */
 export async function insertAuctionWithServer(payload, server) {
-  return writeAuction(payload, server, 'insert');
+  return insertAuction(payload, normalizeServer(server));
+}
+
+/**
+ * Upsert an auction row (used for room-state flushes).
+ * Returns { error }.
+ */
+export async function upsertAuctionWithServer(payload, server) {
+  return upsertAuction(payload, normalizeServer(server));
 }
