@@ -47,8 +47,8 @@ When all players are sold, review every team's final squad and see how your team
 
 1. **Clone and Install**
    ```bash
-   git clone https://github.com/vamsi11126/crick-auction.git
-   cd crick-auction
+   git clone https://github.com/vamsi11126/IPL--Auction.git
+   cd "IPL--Auction"
    npm install
    ```
 

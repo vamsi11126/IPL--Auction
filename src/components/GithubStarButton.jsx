@@ -7,7 +7,11 @@ const GithubStarButton = () => {
   useEffect(() => {
     const fetchStars = async () => {
       try {
-        const response = await fetch('https://api.github.com/repos/vamsi11126/crick-auction');
+        const response = await fetch('https://api.github.com/repos/vamsi11126/IPL--Auction');
+        if (!response.ok) {
+          setStars('0');
+          return;
+        }
         const data = await response.json();
         if (data.stargazers_count !== undefined) {
           const count = data.stargazers_count;
@@ -17,8 +21,7 @@ const GithubStarButton = () => {
             setStars(count.toString());
           }
         }
-      } catch (error) {
-        console.error('Error fetching stars:', error);
+      } catch {
         setStars('0');
       }
     };
@@ -28,7 +31,7 @@ const GithubStarButton = () => {
 
   return (
     <a
-      href="https://github.com/vamsi11126/crick-auction"
+      href="https://github.com/vamsi11126/IPL--Auction"
       target="_blank"
       rel="noopener noreferrer"
       aria-label="View on GitHub"
