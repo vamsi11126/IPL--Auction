@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate, Link, useParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { formatAuthError } from '../utils/authErrors';
 import { db } from '../lib/firebase';
 import { fetchAdminAuctions, deleteAuction } from '../lib/db';
 import { collection, getDocs, deleteDoc, updateDoc, doc, query, orderBy } from 'firebase/firestore';
@@ -159,6 +160,23 @@ const AdminPanel = () => {
     if (!user || !user.email) return false;
     return user.email.trim().toLowerCase() === adminEmail?.trim().toLowerCase();
   }, [user, adminEmail]);
+
+  const [adminAuthError, setAdminAuthError] = useState(null);
+  const [isSigningIn, setIsSigningIn] = useState(false);
+
+  const handleAdminGoogleSignIn = async () => {
+    if (isSigningIn) return;
+    setIsSigningIn(true);
+    setAdminAuthError(null);
+    try {
+      await loginWithGoogle();
+    } catch (err) {
+      console.error('[admin] Google sign-in failed:', err);
+      setAdminAuthError(formatAuthError(err));
+    } finally {
+      setIsSigningIn(false);
+    }
+  };
 
   // Data states
   const [loading, setLoading] = useState(true);
@@ -560,12 +578,19 @@ const AdminPanel = () => {
           </p>
 
           <button
-            onClick={loginWithGoogle}
-            className="w-full py-3.5 px-5 sm:px-6 rounded-2xl bg-gradient-to-r from-[#ff5500] to-[#ff8c00] text-white font-black uppercase tracking-[0.15em] text-xs hover:scale-[1.02] active:scale-[0.98] transition-all shadow-[0_10px_30px_rgba(255,85,0,0.3)] flex items-center justify-center gap-3 cursor-pointer"
+            onClick={handleAdminGoogleSignIn}
+            disabled={isSigningIn}
+            className="w-full py-3.5 px-5 sm:px-6 rounded-2xl bg-gradient-to-r from-[#ff5500] to-[#ff8c00] text-white font-black uppercase tracking-[0.15em] text-xs hover:scale-[1.02] active:scale-[0.98] transition-all shadow-[0_10px_30px_rgba(255,85,0,0.3)] flex items-center justify-center gap-3 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
           >
             <LogIn className="w-4 h-4" />
-            <span>Sign In with Google</span>
+            <span>{isSigningIn ? 'Connecting...' : 'Sign In with Google'}</span>
           </button>
+
+          {adminAuthError && (
+            <div className="mt-4 p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-semibold leading-relaxed">
+              {adminAuthError}
+            </div>
+          )}
 
           <div className="mt-5 sm:mt-6 pt-5 sm:pt-6 border-t border-white/5">
             <Link

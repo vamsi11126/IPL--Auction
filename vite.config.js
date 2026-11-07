@@ -115,6 +115,14 @@ export default defineConfig({
   ],
   server: {
     host: true, // Listen on all network interfaces so hotspot peers can connect
+    headers: {
+      'Cross-Origin-Opener-Policy': 'same-origin-allow-popups',
+    },
+  },
+  preview: {
+    headers: {
+      'Cross-Origin-Opener-Policy': 'same-origin-allow-popups',
+    },
   },
   build: {
     rollupOptions: {

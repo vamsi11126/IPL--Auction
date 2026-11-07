@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { formatAuthError } from '../utils/authErrors';
 import { useAuction } from '../contexts/AuctionContext';
 import {
   Loader2,
@@ -265,7 +266,7 @@ const Lobby = () => {
       await loginWithGoogle();
     } catch (error) {
       console.error('[lobby] Google sign-in failed', error);
-      setActionError('Sign-in failed. Please try again.');
+      setActionError(formatAuthError(error));
     } finally {
       setIsUpdatingSettings(false);
     }

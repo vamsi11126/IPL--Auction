@@ -4,6 +4,8 @@ import { auth } from '../lib/firebase';
 import {
   onAuthStateChanged,
   signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   GoogleAuthProvider,
   signOut,
   signInAnonymously,
@@ -22,6 +24,10 @@ const AuthContext = createContext({
 });
 
 const googleProvider = new GoogleAuthProvider();
+// Force account selection to avoid silent failures or getting stuck in stale sessions
+googleProvider.setCustomParameters({
+  prompt: 'select_account',
+});
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
@@ -69,10 +75,36 @@ export const AuthProvider = ({ children }) => {
     return () => document.removeEventListener('skipIntro', handleSkip);
   }, [markLoaderSeen]);
 
+  // Handle OAuth redirect result if user was redirected instead of popup
+  useEffect(() => {
+    getRedirectResult(auth)
+      .then((result) => {
+        if (result?.user) {
+          setUser(result.user);
+        }
+      })
+      .catch((err) => {
+        console.error('[auth] Google redirect sign-in error:', err);
+      });
+  }, []);
 
-  const loginWithGoogle = async () => {
-    const result = await signInWithPopup(auth, googleProvider);
-    return result.user;
+  const loginWithGoogle = async (preferRedirect = false) => {
+    if (preferRedirect) {
+      await signInWithRedirect(auth, googleProvider);
+      return null;
+    }
+    try {
+      const result = await signInWithPopup(auth, googleProvider);
+      return result.user;
+    } catch (popupError) {
+      // If popup is blocked by the browser, fallback to redirect automatically
+      if (popupError?.code === 'auth/popup-blocked') {
+        console.warn('[auth] Popup blocked by browser; attempting redirect sign-in...');
+        await signInWithRedirect(auth, googleProvider);
+        return null;
+      }
+      throw popupError;
+    }
   };
 
   const loginAsGuest = async (displayName) => {
