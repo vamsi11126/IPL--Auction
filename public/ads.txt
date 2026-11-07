@@ -1,1 +1,2 @@
-google.com, pub-2952599241278941, DIRECT, f08c47fec0942fa0
+# Add your own Google AdSense publisher line here once you have an AdSense account.
+# Format: google.com, pub-XXXXXXXXXXXXXXXX, DIRECT, f08c47fec0942fa0

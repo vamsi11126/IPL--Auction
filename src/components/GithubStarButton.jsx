@@ -7,7 +7,7 @@ const GithubStarButton = () => {
   useEffect(() => {
     const fetchStars = async () => {
       try {
-        const response = await fetch('https://api.github.com/repos/Shaurya01836/ipl-auction');
+        const response = await fetch('https://api.github.com/repos/vamsi11126/crick-auction');
         const data = await response.json();
         if (data.stargazers_count !== undefined) {
           const count = data.stargazers_count;
@@ -19,7 +19,6 @@ const GithubStarButton = () => {
         }
       } catch (error) {
         console.error('Error fetching stars:', error);
-        // Fallback to a static number if API fails, or keep loading state
         setStars('0');
       }
     };
@@ -29,7 +28,7 @@ const GithubStarButton = () => {
 
   return (
     <a
-      href="https://github.com/Shaurya01836/ipl-auction"
+      href="https://github.com/vamsi11126/crick-auction"
       target="_blank"
       rel="noopener noreferrer"
       aria-label="View on GitHub"

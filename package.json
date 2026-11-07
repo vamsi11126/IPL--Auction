@@ -1,7 +1,9 @@
 {
-  "name": "ipl-auction",
+  "name": "crick-auction",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
+  "author": "Vamsi <https://github.com/vamsi11126>",
+  "description": "Real-time multiplayer IPL auction simulator. Host live auctions with friends, bid on players, and build your franchise squad.",
   "type": "module",
   "scripts": {
     "dev": "vite",

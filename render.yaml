@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: ipl-auction
+    name: crick-auction
     env: static
     buildCommand: npm install && npm run build
     staticPublishPath: ./dist
