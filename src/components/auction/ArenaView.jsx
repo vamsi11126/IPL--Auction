@@ -172,7 +172,15 @@ const ArenaView = ({
                      <div className="p-4 sm:p-6 md:p-8 flex flex-col md:flex-row items-center gap-6">
                         {/* Player Photo */}
                         <div className="w-32 h-32 sm:w-44 sm:h-44 md:w-52 md:h-52 bg-white/5 border border-white/10 rounded-2xl sm:rounded-[2rem] overflow-hidden shrink-0 flex items-center justify-center shadow-lg">
-                           <img src={currentPlayer?.image} alt={currentPlayer?.name} className="w-full h-full object-cover" />
+                           <img 
+                              src={currentPlayer?.image} 
+                              alt={currentPlayer?.name} 
+                              className="w-full h-full object-cover" 
+                              onError={(e) => {
+                                 e.target.onerror = null;
+                                 e.target.src = 'https://api.dicebear.com/7.x/initials/svg?seed=' + encodeURIComponent(currentPlayer?.name || 'Player');
+                              }}
+                           />
                         </div>
 
                         {/* Player Info & Live Bid Display */}

@@ -22,6 +22,7 @@ import {
    toFiniteNumber,
 } from '../lib/auctionDisplay';
 import { getLiveRemainingMs, isInLastCall } from '../lib/localAuctionEngine';
+import { evaluateSquadStrength } from '../lib/squadRatingEngine';
 
 // Modular Auction Components
 import AuctionNavbar from '../components/auction/AuctionNavbar';
@@ -112,29 +113,26 @@ const AuctionRoom = () => {
       ? timerProgress(rawSecondsRemaining, timerTotal)
       : 0;
 
-   // Real-time team ratings
+   // Real-time team ratings using wise franchise strength evaluation
    const liveTeamRatings = useMemo(() => {
-      const playerMap = new Map(IPL_PLAYERS.map(p => [p.id, p]));
+      const minPlayers = currentAuction?.auctionType === 'sprint5' ? 5 : currentAuction?.auctionType === 'sprint11' ? 11 : 18;
       const ratingMap = {};
 
       TEAMS.forEach(team => {
          const teamDoc = roomTeams.find(doc => doc.teamId === team.id);
          const squad = teamDoc?.squad || [];
+         const evaluation = evaluateSquadStrength(squad, minPlayers);
+         const avgRating = squad.length > 0 ? evaluation.overallScore.toFixed(1) : null;
 
-         let totalRating = 0;
-         let ratedPlayersCount = 0;
-
-         squad.forEach(member => {
-            const pid = typeof member === 'string' ? member : member.id;
-            const pInfo = playerMap.get(pid);
-            if (pInfo?.rating) {
-               totalRating += pInfo.rating;
-               ratedPlayersCount += 1;
-            }
-         });
-
-         const avgRating = ratedPlayersCount > 0 ? (totalRating / ratedPlayersCount).toFixed(1) : null;
-         ratingMap[team.id] = { totalRating, avgRating, playerCount: squad.length };
+         ratingMap[team.id] = { 
+            totalRating: evaluation.overallScore, 
+            avgRating, 
+            playerCount: squad.length,
+            playingXIRating: evaluation.playingXIRating,
+            balanceScore: evaluation.balanceScore,
+            benchScore: evaluation.benchScore,
+            balanceTags: evaluation.balanceTags
+         };
       });
 
       const rankedTeams = [...TEAMS].sort((a, b) => {
@@ -145,7 +143,7 @@ const AuctionRoom = () => {
       });
 
       return { ratingMap, rankedTeams };
-   }, [roomTeams]);
+   }, [roomTeams, currentAuction]);
 
    // Audio unlocker for mobile browsers
    useEffect(() => {

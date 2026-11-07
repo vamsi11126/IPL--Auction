@@ -8,28 +8,36 @@ import { countOverseas, isOverseasPlayer, toFiniteNumber } from './auctionDispla
  * Higher = more willing to pay a premium.
  */
 const SET_TIER = {
-  'Marquee Set 1': { base: 2.2, max: 4.5 },  // Elite marquee (Bumrah, SKY, etc.)
-  'Set 1':         { base: 1.5, max: 3.0 },  // Capped Indian stars
-  'Set 2':         { base: 1.2, max: 2.2 },  // Good capped players
-  'Set 3':         { base: 1.0, max: 1.7 },  // Decent capped players
-  'Set 4':         { base: 0.8, max: 1.4 },  // Fringe capped
-  'AL1':           { base: 1.3, max: 2.5 },  // Overseas All-rounders
-  'WK1':           { base: 1.3, max: 2.4 },  // Overseas Wicketkeepers
-  'FA1':           { base: 1.2, max: 2.2 },  // Overseas Fast Bowlers
-  'UBA1':          { base: 0.9, max: 1.5 },  // Uncapped Batsmen Tier 1
-  'UAL1':          { base: 0.9, max: 1.6 },  // Uncapped All-Rounders T1
-  'UWK1':          { base: 0.8, max: 1.4 },  // Uncapped WK T1
-  'UFA1':          { base: 0.8, max: 1.3 },  // Uncapped Fast T1
-  'USP1':          { base: 0.7, max: 1.2 },  // Uncapped Spinners T1
-  'BA2':           { base: 0.7, max: 1.2 },  // Capped batsmen tier 2
-  'AL2':           { base: 0.7, max: 1.2 },  // Overseas All-rounders T2
-  'WK2':           { base: 0.7, max: 1.1 },  // Overseas WK T2
-  'FA2':           { base: 0.7, max: 1.1 },  // Overseas Fast T2
-  'SP2':           { base: 0.6, max: 1.0 },  // Spinners T2
-  'UBA2':          { base: 0.6, max: 1.0 },  // Uncapped Batsmen T2
-  'UAL2':          { base: 0.6, max: 1.0 },  // Uncapped All-Rounders T2
-  'UWK2':          { base: 0.5, max: 0.9 },  // Uncapped WK T2
-  'UFA2':          { base: 0.5, max: 0.9 },  // Uncapped Fast T2
+  'Marquee Set 1':       { base: 2.4, max: 5.5 },
+  'Marquee Set 2':       { base: 2.2, max: 4.8 },
+  'Marquee Icons Set 1': { base: 2.5, max: 6.0 },
+  'Marquee Icons Set 2': { base: 2.3, max: 5.2 },
+  'BA1':                 { base: 1.4, max: 2.8 },
+  'AL1':                 { base: 1.5, max: 3.2 },
+  'WK1':                 { base: 1.4, max: 3.0 },
+  'FA1':                 { base: 1.5, max: 3.2 },
+  'SP1':                 { base: 1.3, max: 2.7 },
+  'UBA1':                { base: 0.9, max: 1.8 },
+  'UAL1':                { base: 1.0, max: 2.0 },
+  'UWK1':                { base: 0.9, max: 1.8 },
+  'UFA1':                { base: 0.9, max: 2.0 },
+  'USP1':                { base: 0.8, max: 1.6 },
+  'BA2':                 { base: 0.8, max: 1.6 },
+  'AL2':                 { base: 0.8, max: 1.7 },
+  'WK2':                 { base: 0.8, max: 1.5 },
+  'FA2':                 { base: 0.8, max: 1.6 },
+  'SP2':                 { base: 0.7, max: 1.4 },
+  'UBA2':                { base: 0.6, max: 1.2 },
+  'UAL2':                { base: 0.6, max: 1.2 },
+  'UWK2':                { base: 0.6, max: 1.2 },
+  'UFA2':                { base: 0.6, max: 1.2 },
+  'USP2':                { base: 0.5, max: 1.1 },
+  'ACC1':                { base: 0.5, max: 1.0 },
+  'ACC2':                { base: 0.4, max: 0.9 },
+  'Set 1':               { base: 1.5, max: 3.0 },
+  'Set 2':               { base: 1.2, max: 2.2 },
+  'Set 3':               { base: 1.0, max: 1.7 },
+  'Set 4':               { base: 0.8, max: 1.4 },
 };
 
 /**
@@ -40,52 +48,52 @@ const SET_TIER = {
 const TEAM_PREFERENCES = {
   CSK: {
     roles: { 'All-Rounder': 1.40, 'Bowler': 1.25 },
-    sets: { 'Marquee Set 1': 1.20 },
-    personality: 'conservative', // CSK: steady, rarely overpays, loves experience
+    sets: { 'Marquee Set 1': 1.20, 'Marquee Icons Set 1': 1.25, 'AL1': 1.20 },
+    personality: 'conservative',
   },
   MI: {
-    roles: { 'Bowler': 1.35, 'Batsman': 1.20 },
-    sets: { 'Marquee Set 1': 1.30, 'Set 1': 1.15 },
-    personality: 'aggressive',   // MI: goes hard on star players
+    roles: { 'Bowler': 1.35, 'Batsman': 1.20, 'Batter': 1.20 },
+    sets: { 'Marquee Set 1': 1.30, 'Marquee Icons Set 1': 1.35, 'FA1': 1.20 },
+    personality: 'aggressive',
   },
   RCB: {
-    roles: { 'Batsman': 1.45, 'All-Rounder': 1.20 },
-    sets: { 'Marquee Set 1': 1.35, 'AL1': 1.20 },
-    personality: 'aggressive',   // RCB: overpays for big batting names
+    roles: { 'Batsman': 1.45, 'Batter': 1.45, 'All-Rounder': 1.20 },
+    sets: { 'Marquee Set 1': 1.35, 'Marquee Icons Set 1': 1.40, 'BA1': 1.25, 'AL1': 1.20 },
+    personality: 'aggressive',
   },
   KKR: {
     roles: { 'Bowler': 1.30, 'All-Rounder': 1.25 },
-    sets: { 'Set 1': 1.15 },
+    sets: { 'Marquee Icons Set 2': 1.25, 'SP1': 1.25, 'AL1': 1.20 },
     personality: 'balanced',
   },
   DC: {
-    roles: { 'Bowler': 1.30, 'Wicketkeeper': 1.25 },
-    sets: { 'UFA1': 1.20, 'UBA1': 1.15 },
-    personality: 'value',        // DC: hunts value/uncapped
+    roles: { 'Bowler': 1.30, 'Wicket-Keeper': 1.30, 'Wicketkeeper': 1.30 },
+    sets: { 'UFA1': 1.20, 'UBA1': 1.15, 'WK1': 1.20 },
+    personality: 'value',
   },
   PBKS: {
-    roles: { 'Batsman': 1.25, 'All-Rounder': 1.15 },
-    sets: { 'UBA1': 1.30, 'UAL1': 1.25 },
-    personality: 'value',        // PBKS: bets on uncapped talent
+    roles: { 'Batsman': 1.25, 'Batter': 1.25, 'All-Rounder': 1.20, 'Wicket-Keeper': 1.20, 'Wicketkeeper': 1.20 },
+    sets: { 'Marquee Set 1': 1.30, 'UBA1': 1.30, 'UAL1': 1.25 },
+    personality: 'value',
   },
   RR: {
     roles: { 'All-Rounder': 1.35, 'Bowler': 1.20 },
-    sets: { 'UBA1': 1.30, 'UAL1': 1.25, 'UFA1': 1.20 },
-    personality: 'value',        // RR: analytical, loves undervalued gems
+    sets: { 'UBA1': 1.30, 'UAL1': 1.25, 'UFA1': 1.20, 'FA1': 1.20 },
+    personality: 'value',
   },
   SRH: {
-    roles: { 'Bowler': 1.40, 'Batsman': 1.25 },
-    sets: { 'FA1': 1.25, 'Set 1': 1.15 },
+    roles: { 'Bowler': 1.40, 'Batsman': 1.25, 'Batter': 1.25 },
+    sets: { 'FA1': 1.25, 'Marquee Set 1': 1.20, 'BA1': 1.20 },
     personality: 'balanced',
   },
   GT: {
     roles: { 'All-Rounder': 1.30, 'Bowler': 1.20 },
-    sets: { 'Set 2': 1.15, 'Set 3': 1.10 },
+    sets: { 'FA1': 1.20, 'SP1': 1.20 },
     personality: 'conservative',
   },
   LSG: {
-    roles: { 'Wicketkeeper': 1.35, 'Batsman': 1.20 },
-    sets: { 'WK1': 1.25, 'Set 2': 1.15 },
+    roles: { 'Wicket-Keeper': 1.35, 'Wicketkeeper': 1.35, 'Batsman': 1.20, 'Batter': 1.20 },
+    sets: { 'WK1': 1.25, 'Marquee Set 1': 1.25 },
     personality: 'balanced',
   },
 };
