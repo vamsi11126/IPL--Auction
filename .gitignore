@@ -27,3 +27,6 @@ dist-ssr
 *.sw?
 tmp/
 ipl_stats_career.csv
+
+.agents/
+server/.env

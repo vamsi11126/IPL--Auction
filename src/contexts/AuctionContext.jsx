@@ -1049,14 +1049,10 @@ export const AuctionProvider = ({ children }) => {
     // N writes per transition.
     let lastHostOnlineSynced = null; // last value we pushed (null = unknown)
     const syncHostOnline = (next) => {
-      if (!supabase || next === lastHostOnlineSynced) return;
-      lastHostOnlineSynced = next; // optimistic: parallel presence ticks won't double-write
-      supabase
-        .from('auctions')
-        .update({ host_online: next })
-        .eq('id', auctionId)
-        .then(() => {})
-        .catch(() => { lastHostOnlineSynced = null; }); // allow a later retry
+      if (next === lastHostOnlineSynced) return;
+      lastHostOnlineSynced = next;
+      updateAuction(auctionId, { host_online: next })
+        .catch(() => { lastHostOnlineSynced = null; });
     };
 
 

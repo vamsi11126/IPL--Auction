@@ -207,7 +207,6 @@ const LandingPage = () => {
     } finally {
       setLobbiesLoading(false);
     }
-  }
   };
 
   useEffect(() => {
@@ -241,13 +240,6 @@ const LandingPage = () => {
     try {
       // Optimized egress: Select only needed columns for history cards and limit to recent 20
       const supabaseTeams = await fetchTeamsByUser(userId);
-        .from("teams")
-        .select("id, auction_id, user_id, team_id, team_name, budget_remaining, spent, squad, created_at")
-        .eq("user_id", userId)
-        .order("created_at", { ascending: false })
-        .limit(20);
-
-      // teamsError handled by API
 
       if (!supabaseTeams || supabaseTeams.length === 0) {
         setHistoryData([]);
@@ -261,11 +253,6 @@ const LandingPage = () => {
 
       // Optimized egress: Exclude player_order and massive player collections (server is in settings)
       const supabaseAuctions = await fetchAuctions(auctionIds);
-        .from("auctions")
-        .select("id, settings, status, auction_type, overseas_limit, squad_limit, created_at")
-        .in("id", auctionIds);
-
-      // auctionsError handled by API
 
       const auctionMap = {};
       (supabaseAuctions || []).forEach((a) => {

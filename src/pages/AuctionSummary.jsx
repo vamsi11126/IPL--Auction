@@ -126,17 +126,7 @@ const AuctionSummary = () => {
         if (true) {
           // Optimized egress: Exclude heavy player_order column
           const aData = await fetchAuction(id);
-            .from('auctions')
-            .select('id, host_id, host_name, status, auction_type, squad_limit, overseas_limit, players, settings')
-            .eq('id', id)
-            .maybeSingle();
-          // auctionError handled by API
-
           const tData = await fetchTeamsByAuction(id);
-            .from('teams')
-            .select('id, auction_id, user_id, team_id, team_name, budget_remaining, spent, squad')
-            .eq('auction_id', id);
-          // teamsError handled by API
 
           if (aData && isMounted) {
             setDbAuction({
