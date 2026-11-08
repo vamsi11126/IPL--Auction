@@ -9,6 +9,7 @@ import LandingPage from './pages/LandingPage'
 import './index.css'
 
 // ── Lazy-loaded routes (split out of the initial bundle) ──────────────────────
+const RoomHub         = lazy(() => import('./pages/RoomHub'))
 const AuctionRoom     = lazy(() => import('./pages/AuctionRoom'))
 const AuctionSummary  = lazy(() => import('./pages/AuctionSummary'))
 const Lobby           = lazy(() => import('./pages/Lobby'))
@@ -52,6 +53,17 @@ function App() {
                 <Routes>
                   {/* LandingPage is eagerly loaded — it IS the first paint */}
                   <Route path="/" element={<LandingPage />} />
+
+                  {/* Room Hub for creating and joining rooms */}
+                  <Route path="/rooms" element={
+                    <Suspense fallback={<PageFallback />}><RoomHub /></Suspense>
+                  } />
+                  <Route path="/create" element={
+                    <Suspense fallback={<PageFallback />}><RoomHub initialTab="new" /></Suspense>
+                  } />
+                  <Route path="/join" element={
+                    <Suspense fallback={<PageFallback />}><RoomHub initialTab="join" /></Suspense>
+                  } />
 
                   {/* All other routes are code-split into separate chunks */}
                   <Route path="/admin" element={
