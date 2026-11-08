@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 
 const AdSlot = ({ slot, className = '', label = 'Advertisement' }) => {
-  const clientId = import.meta.env.VITE_ADSENSE_CLIENT_ID;
+  const clientId = import.meta.env.VITE_ADSENSE_CLIENT_ID || 'ca-pub-8390956059143007';
   const canRenderAd = clientId && slot;
 
   useEffect(() => {
