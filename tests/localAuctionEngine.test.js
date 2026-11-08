@@ -15,6 +15,7 @@ import {
   endLocalAuction,
   mergeLocalRooms,
   subscribeLocalRoom,
+  saveLocalTeamRetentions,
 } from '../src/lib/localAuctionEngine.js';
 
 test('createLocalRoom creates a room with valid initial data', () => {
@@ -286,3 +287,54 @@ test('endLocalAuction marks status as completed and resolves', async () => {
 
 
 
+
+test('sprint8 mode sets maxParticipants to 8 and fillLocalEmptyTeamsWithBots fills only up to 8 teams', () => {
+  const roomId = 'HOTSPOT-SPRINT8-TEST';
+  createLocalRoom(roomId, 'host_sprint8', { name: 'Host', team: 'CSK' }, 'sprint8');
+  const room = readLocalRoom(roomId);
+  assert.equal(room.maxParticipants, 8);
+  assert.equal(room.settings.budget, 120.0);
+  assert.equal(room.squadLimit, 25);
+
+  fillLocalEmptyTeamsWithBots(roomId);
+  const updatedRoom = readLocalRoom(roomId);
+  assert.equal(updatedRoom.players.length, 8);
+});
+
+test('sprint5 mode caps fillLocalEmptyTeamsWithBots to 5 teams', () => {
+  const roomId = 'HOTSPOT-SPRINT5-TEST';
+  createLocalRoom(roomId, 'host_sprint5', { name: 'Host', team: 'RCB' }, 'sprint5');
+  fillLocalEmptyTeamsWithBots(roomId);
+  const room = readLocalRoom(roomId);
+  assert.equal(room.players.length, 5);
+});
+
+test('mega auction applies official franchise retentions, deducts purse, and excludes retained players from auction pool', () => {
+  const roomId = 'HOTSPOT-MEGA-RETENTION';
+  createLocalRoom(roomId, 'host_mega', { name: 'Host', team: 'MI' }, 'mega');
+  saveLocalTeamRetentions(roomId, 'MI', ['p_621']);
+  startLocalAuction(roomId);
+
+  const room = readLocalRoom(roomId);
+  const miTeam = room.teams[`${roomId}_host_mega`];
+  assert.ok(miTeam.squad.length > 0);
+  assert.ok(miTeam.squad.some(p => p.name === 'Jasprit Bumrah'));
+  assert.ok(miTeam.budgetRemaining < 120.0);
+  assert.equal(miTeam.spent, 120.0 - miTeam.budgetRemaining);
+
+  // Check that retained players are excluded from playerOrder
+  const bumrahPlayer = miTeam.squad.find(p => p.name === 'Jasprit Bumrah');
+  assert.ok(!room.playerOrder.includes(bumrahPlayer.id));
+});
+
+test('human user who chooses not to retain any players retains 0 players and keeps full 120 Cr budget', () => {
+  const roomId = 'HOTSPOT-ZERO-RETENTION';
+  createLocalRoom(roomId, 'host_clean', { name: 'Host Clean', team: 'CSK' }, 'mega');
+  startLocalAuction(roomId);
+
+  const room = readLocalRoom(roomId);
+  const cskTeam = room.teams[`${roomId}_host_clean`];
+  assert.equal(cskTeam.squad.length, 0);
+  assert.equal(cskTeam.budgetRemaining, 120.0);
+  assert.equal(cskTeam.spent, 0);
+});

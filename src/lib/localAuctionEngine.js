@@ -1,4 +1,5 @@
 import { IPL_PLAYERS } from '../data/players.js';
+import { IPL_FRANCHISE_ROSTERS } from '../data/teamRosters.js';
 import { evaluateBotBid } from './botEngine.js';
 import { toFiniteNumber, countOverseas, isOverseasPlayer } from './auctionDisplay.js';
 import { supabase } from './supabase.js';
@@ -1238,14 +1239,16 @@ function release(rt) {
 
 /* ---------------------------- player order helper ------------------------- */
 
-export function generateLocalPlayerOrder(auctionType = 'mega') {
+export function generateLocalPlayerOrder(auctionType = 'mega', excludedIds = new Set()) {
   let targetPlayers = IPL_PLAYERS.length;
   if (auctionType === 'sprint11') targetPlayers = 150;
   else if (auctionType === 'sprint5') targetPlayers = 75;
+  else if (auctionType === 'sprint8') targetPlayers = 200;
 
   const marquee = [];
   const byRole = {};
   IPL_PLAYERS.forEach((p, i) => {
+    if (excludedIds && (excludedIds.has(p.id) || excludedIds.has(p.name))) return;
     if (p.set.includes('Marquee')) marquee.push(i);
     else (byRole[p.role] ||= []).push(i);
   });
@@ -1281,10 +1284,12 @@ export function createLocalRoom(roomId, userId, playerDetails, auctionType = 'me
   rt.userId = userId;
 
   const isSprint5 = auctionType === 'sprint5';
+  const isSprint8 = auctionType === 'sprint8';
   const isSprint11 = auctionType === 'sprint11';
   const budget = isSprint5 ? 60.0 : isSprint11 ? 90.0 : 120.0;
   const squadLimit = isSprint5 ? 5 : isSprint11 ? 11 : 25;
   const overseasLimit = isSprint5 ? 2 : isSprint11 ? 4 : 8;
+  const maxParticipants = isSprint5 ? 5 : isSprint8 ? 8 : 10;
   const teamDetails = TEAMS.find((t) => t.id === playerDetails.team);
   const now = Date.now();
 
@@ -1311,6 +1316,7 @@ export function createLocalRoom(roomId, userId, playerDetails, auctionType = 'me
     isPublic: !!isPublic,
     squadLimit,
     overseasLimit,
+    maxParticipants,
     server: 'local',
     isLocal: true,
     createdAt: now,
@@ -1416,11 +1422,13 @@ export function fillLocalEmptyTeamsWithBots(roomId) {
   commitHost(roomId, (room) => {
     room.players = room.players || [];
     room.teams = room.teams || {};
+    const maxParticipants = room.maxParticipants || (room.auctionType === 'sprint5' ? 5 : room.auctionType === 'sprint8' ? 8 : 10);
     const taken = new Set(room.players.map((p) => p.team).filter(Boolean));
     const budget = toFiniteNumber(room.settings?.budget, 120.0);
     let added = 0;
-    TEAMS.forEach((t) => {
-      if (taken.has(t.id)) return;
+    for (const t of TEAMS) {
+      if (room.players.length >= maxParticipants) break;
+      if (taken.has(t.id)) continue;
       const botId = `bot_${t.id}`;
       room.players.push({
         id: botId,
@@ -1434,6 +1442,9 @@ export function fillLocalEmptyTeamsWithBots(roomId) {
         squadCount: 0,
       });
       const docId = `${roomId}_${botId}`;
+      const defaultRetainedIds = (room.auctionType === 'mega' || room.auctionType === 'mini')
+        ? (IPL_FRANCHISE_ROSTERS[t.id] || []).filter((p) => p.defaultRetained).map((p) => p.id)
+        : [];
       room.teams[docId] = {
         id: docId,
         auctionId: roomId,
@@ -1443,10 +1454,23 @@ export function fillLocalEmptyTeamsWithBots(roomId) {
         budgetRemaining: budget,
         spent: 0,
         squad: [],
+        retainedIds: defaultRetainedIds,
       };
       added += 1;
-    });
+    }
     return added > 0;
+  });
+}
+
+export function saveLocalTeamRetentions(roomId, teamId, retainedIds) {
+  return commitHost(roomId, (room) => {
+    if (!room.teams) return false;
+    const teamKey = Object.keys(room.teams).find((k) => room.teams[k].teamId === teamId);
+    if (teamKey) {
+      room.teams[teamKey].retainedIds = retainedIds;
+      return true;
+    }
+    return false;
   });
 }
 
@@ -1463,7 +1487,46 @@ export function startLocalAuction(roomId) {
   if (!isBrowser && r) rt.userId = r.hostId;
   const room = commitHost(roomId, (d) => {
     if (d.status === 'active') return false;
-    const order = generateLocalPlayerOrder(d.auctionType || 'mega');
+    const allRetainedIds = new Set();
+    if (d.auctionType === 'mega' || d.auctionType === 'mini') {
+      if (d.teams) {
+        Object.values(d.teams).forEach((t) => {
+          const teamId = t.teamId;
+          if (!teamId) return;
+          const rosterList = IPL_FRANCHISE_ROSTERS[teamId] || [];
+          let retainedList = [];
+          const isBot = t.userId?.startsWith('bot_') || t.isBot;
+          if (Array.isArray(t.retainedIds)) {
+            const retainedSet = new Set(t.retainedIds);
+            retainedList = rosterList.filter((p) => retainedSet.has(p.id));
+          } else if (isBot) {
+            retainedList = rosterList.filter((p) => p.defaultRetained);
+          } else {
+            retainedList = [];
+          }
+          if (d.auctionType === 'mega' && retainedList.length > 6) {
+            retainedList = retainedList.slice(0, 6);
+          }
+          const totalDeduction = retainedList.reduce((acc, p) => acc + (p.retentionPrice || 0), 0);
+          t.budgetRemaining = Math.max(0, 120.0 - totalDeduction);
+          t.spent = totalDeduction;
+          t.squad = retainedList.map((p) => ({
+            id: p.id,
+            name: p.name,
+            role: p.role,
+            type: p.type,
+            country: p.country,
+            image: p.image,
+            rating: p.rating,
+            isRetained: true,
+            soldPrice: p.retentionPrice,
+            bid: p.retentionPrice,
+          }));
+          retainedList.forEach((p) => allRetainedIds.add(p.id));
+        });
+      }
+    }
+    const order = generateLocalPlayerOrder(d.auctionType || 'mega', allRetainedIds);
     const first = IPL_PLAYERS[order[0]];
     if (!first) return false;
     d.status = 'active';

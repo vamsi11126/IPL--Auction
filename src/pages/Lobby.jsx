@@ -12,6 +12,7 @@ import {
   Home,
   Gavel,
   ShieldAlert,
+  ShieldCheck,
   Copy,
   MessageSquare,
   Settings as SettingsIcon,
@@ -35,6 +36,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { TEAMS } from '../data/teams';
 import { formatCrores, toFiniteNumber } from '../lib/auctionDisplay';
 import TextChat from '../components/TextChat';
+import RetentionDesk from '../components/auction/RetentionDesk';
 import Footer from '../components/Footer';
 import PageLoader from '../components/PageLoader';
 import useRoomServer from '../hooks/useRoomServer';
@@ -66,7 +68,7 @@ const Lobby = () => {
   useDocumentTitle(`Lobby ${id ? `#${id}` : ''} | CrickAuction`, 'Live franchise team selection and auction hub.', true);
   const { server, ready: serverReady } = useRoomServer(id);
   const { user, loginWithGoogle, loginAsGuest, loading: authLoading } = useAuth();
-  const { joinAuction, currentAuction, loading: auctionLoading, messages, kickPlayer, updatePlayerTeam, startAuction, joinRoomDb, removeBotTeam, fillEmptyTeamsWithBots } = useAuction();
+  const { joinAuction, currentAuction, roomTeams = [], saveTeamRetentions, loading: auctionLoading, messages, kickPlayer, updatePlayerTeam, startAuction, joinRoomDb, removeBotTeam, fillEmptyTeamsWithBots } = useAuction();
   const navigate = useNavigate();
 
   const [activeTab, setActiveTab] = useState('players');
@@ -86,6 +88,7 @@ const Lobby = () => {
   });
 
   const isAdmin = currentAuction?.hostId === user?.uid;
+  const isMegaOrMini = currentAuction?.auctionType === 'mega' || currentAuction?.auctionType === 'mini' || !currentAuction?.auctionType;
   const players = currentAuction?.players || [];
 
   const teamAssignments = players.reduce((acc, p) => {
@@ -701,6 +704,21 @@ const Lobby = () => {
                   );
                 })}
               </div>
+
+              {isMegaOrMini && (
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('retentions')}
+                  className={`w-full mt-3 py-3 px-4 rounded-2xl border text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer transition-all ${
+                    activeTab === 'retentions'
+                      ? 'bg-[#ff5500] text-white border-[#ff5500] shadow-[0_0_20px_rgba(255,85,0,0.3)]'
+                      : 'bg-[#ff5500]/10 hover:bg-[#ff5500]/20 border-[#ff5500]/30 text-[#ff5500]'
+                  }`}
+                >
+                  <ShieldCheck size={16} />
+                  <span>{currentAuction?.auctionType === 'mini' ? 'Open Mini Release Desk' : 'Open Mega Retention Desk'}</span>
+                </button>
+              )}
             </div>
 
             {/* Divider */}
@@ -757,6 +775,9 @@ const Lobby = () => {
             <div className="flex bg-white/[0.02] p-1.5 gap-1.5 rounded-2xl mb-6 border border-white/5">
               {[
                 { id: 'players', icon: Users, label: `Players` },
+                ...(isMegaOrMini
+                  ? [{ id: 'retentions', icon: ShieldCheck, label: currentAuction?.auctionType === 'mini' ? 'Release Desk' : 'Retention Desk' }]
+                  : []),
                 { id: 'chat', icon: MessageSquare, label: 'Chat' }
               ].map(tab => (
                 <button
@@ -851,6 +872,24 @@ const Lobby = () => {
                         </motion.div>
                       );
                     })}
+                  </motion.div>
+                )}
+
+                {activeTab === 'retentions' && isMegaOrMini && (
+                  <motion.div
+                    key="retentions"
+                    {...enterProps({ opacity: 0, y: 10 })}
+                    {...exitProps({ opacity: 0, y: -10 })}
+                    className="pb-4"
+                  >
+                    <RetentionDesk
+                      roomId={id}
+                      currentAuction={currentAuction}
+                      currentUserPlayer={currentUserPlayer}
+                      roomTeams={roomTeams}
+                      saveTeamRetentions={saveTeamRetentions}
+                      isAdmin={isAdmin}
+                    />
                   </motion.div>
                 )}
 

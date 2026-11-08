@@ -682,39 +682,77 @@ export default function RoomHub({ initialTab }) {
               </div>
 
               {/* Rules & Hosting Mode Settings */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="space-y-3">
                 {/* Auction Format */}
                 <div className="p-3.5 rounded-2xl bg-white/[0.02] border border-white/5">
-                  <span className="text-[10px] font-black uppercase tracking-wider text-gray-400 block mb-2">
-                    2. Auction Format
-                  </span>
-                  <div className="grid grid-cols-2 gap-1.5">
+                  <div className="flex items-center justify-between mb-2.5">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-gray-400">
+                      2. Auction Format
+                    </span>
+                    <span className="text-[10px] text-orange-400 font-bold uppercase tracking-wider">
+                      {auctionType === "mega"
+                        ? "IPL Mega Auction • ₹120 Cr • Custom Retentions"
+                        : auctionType === "mini"
+                        ? "Mini Auction • ₹120 Cr • Squad Releases"
+                        : auctionType === "sprint8"
+                        ? "Sprint (8 Teams) • Max 8 Participants • Fresh Auction"
+                        : "Sprint (5 Teams) • Max 5 Participants • Fresh Auction"}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                     <button
                       type="button"
                       onClick={() => setAuctionType("mega")}
-                      className={`py-2 px-2 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all text-center ${
+                      className={`p-3 rounded-xl text-left transition-all cursor-pointer border ${
                         auctionType === "mega"
-                          ? "bg-white/15 text-white border border-white/20"
-                          : "text-gray-400 hover:text-white"
+                          ? "bg-orange-500/15 text-white border-orange-500/50 shadow-[0_0_15px_rgba(255,85,0,0.2)]"
+                          : "bg-white/[0.02] text-gray-400 hover:text-white border-white/5 hover:bg-white/[0.05]"
                       }`}
                     >
-                      Mega (₹120 Cr)
+                      <div className="text-[11px] font-black uppercase tracking-wide text-white">Mega Auction</div>
+                      <div className="text-[9px] text-gray-400 mt-0.5">₹120 Cr • 10 Teams • Retain 6</div>
                     </button>
                     <button
                       type="button"
                       onClick={() => setAuctionType("mini")}
-                      className={`py-2 px-2 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all text-center ${
+                      className={`p-3 rounded-xl text-left transition-all cursor-pointer border ${
                         auctionType === "mini"
-                          ? "bg-white/15 text-white border border-white/20"
-                          : "text-gray-400 hover:text-white"
+                          ? "bg-orange-500/15 text-white border-orange-500/50 shadow-[0_0_15px_rgba(255,85,0,0.2)]"
+                          : "bg-white/[0.02] text-gray-400 hover:text-white border-white/5 hover:bg-white/[0.05]"
                       }`}
                     >
-                      Mini (₹100 Cr)
+                      <div className="text-[11px] font-black uppercase tracking-wide text-white">Mini Auction</div>
+                      <div className="text-[9px] text-gray-400 mt-0.5">₹120 Cr • 10 Teams • Releases</div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAuctionType("sprint8")}
+                      className={`p-3 rounded-xl text-left transition-all cursor-pointer border ${
+                        auctionType === "sprint8"
+                          ? "bg-orange-500/15 text-white border-orange-500/50 shadow-[0_0_15px_rgba(255,85,0,0.2)]"
+                          : "bg-white/[0.02] text-gray-400 hover:text-white border-white/5 hover:bg-white/[0.05]"
+                      }`}
+                    >
+                      <div className="text-[11px] font-black uppercase tracking-wide text-white">Sprint (8 Teams)</div>
+                      <div className="text-[9px] text-gray-400 mt-0.5">Max 8 Teams • Fresh Auction</div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAuctionType("sprint5")}
+                      className={`p-3 rounded-xl text-left transition-all cursor-pointer border ${
+                        auctionType === "sprint5"
+                          ? "bg-orange-500/15 text-white border-orange-500/50 shadow-[0_0_15px_rgba(255,85,0,0.2)]"
+                          : "bg-white/[0.02] text-gray-400 hover:text-white border-white/5 hover:bg-white/[0.05]"
+                      }`}
+                    >
+                      <div className="text-[11px] font-black uppercase tracking-wide text-white">Sprint (5 Teams)</div>
+                      <div className="text-[9px] text-gray-400 mt-0.5">Max 5 Teams • Fresh Auction</div>
                     </button>
                   </div>
                 </div>
 
-                {/* Hosting Mode */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* Hosting Mode */}
                 <div className="p-3.5 rounded-2xl bg-white/[0.02] border border-white/5">
                   <span className="text-[10px] font-black uppercase tracking-wider text-gray-400 block mb-2">
                     3. Connection Mode
@@ -778,6 +816,7 @@ export default function RoomHub({ initialTab }) {
                   </div>
                 </div>
               </div>
+            </div>
 
               {/* COLLAPSIBLE HOTSPOT MODE STEPS ACCORDION */}
               <LocalPlayRoadmap
@@ -927,7 +966,7 @@ export default function RoomHub({ initialTab }) {
                         <div className="text-right">
                           <span className="text-xs font-black text-emerald-400 flex items-center gap-1 justify-end">
                             <Users size={12} />
-                            <span>{room.players.length}/10</span>
+                            <span>{room.players.length}/{room.auctionType === 'sprint5' ? 5 : room.auctionType === 'sprint8' ? 8 : 10}</span>
                           </span>
                         </div>
                       </div>

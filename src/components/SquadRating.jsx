@@ -9,7 +9,7 @@ const SquadRating = ({ roomTeams = [], currentAuction }) => {
 
   const minPlayers = useMemo(() => {
     const type = currentAuction?.auctionType || 'mega';
-    if (type === 'mega') return 18;
+    if (type === 'mega' || type === 'mini' || type === 'sprint8') return 18;
     if (type === 'sprint11') return 11;
     if (type === 'sprint5') return 5;
     return currentAuction?.settings?.minPlayers || 18;

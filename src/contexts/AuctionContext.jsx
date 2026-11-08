@@ -22,6 +22,7 @@ import {
 } from '../lib/db';
 import { supabase } from '../lib/supabase';
 import { IPL_PLAYERS } from '../data/players';
+import { IPL_FRANCHISE_ROSTERS } from '../data/teamRosters.js';
 import { evaluateBotBid } from '../lib/botEngine';
 import { 
   ref, 
@@ -71,6 +72,7 @@ import {
   subscribeLocalRoom,
   updateLocalPlayerTeam as updateLocalPlayerTeamEngine,
   fillLocalEmptyTeamsWithBots as fillLocalEmptyTeamsWithBotsEngine,
+  saveLocalTeamRetentions,
   removeLocalBotTeam as removeLocalBotTeamEngine,
   startLocalAuction as startLocalAuctionEngine,
   placeLocalBid as placeLocalBidEngine,
@@ -215,11 +217,13 @@ export const AuctionProvider = ({ children }) => {
     
     // Mode-specific configurations
     const isSprint5 = auctionType === 'sprint5';
+    const isSprint8 = auctionType === 'sprint8';
     const isSprint11 = auctionType === 'sprint11';
     
     const budget = isSprint5 ? 60.0 : isSprint11 ? 90.0 : 120.0;
     const squadLimit = isSprint5 ? 5 : isSprint11 ? 11 : 25;
     const overseasLimit = isSprint5 ? 2 : isSprint11 ? 4 : 8;
+    const maxParticipants = isSprint5 ? 5 : isSprint8 ? 8 : 10;
     const settings = { bidTimer: 10, budget };
 
     const roomData = {
@@ -230,6 +234,7 @@ export const AuctionProvider = ({ children }) => {
       isPublic: !!isPublic,
       squadLimit,
       overseasLimit,
+      maxParticipants,
       server: actualServer,
       players: [{
         id: userId,
@@ -417,6 +422,22 @@ export const AuctionProvider = ({ children }) => {
     }
   }, []);
 
+  const saveTeamRetentions = useCallback(async (roomId, teamId, retainedIds) => {
+    if (isHotspotRoomCode(roomId) || currentAuction?.server === 'local') {
+      return saveLocalTeamRetentions(roomId, teamId, retainedIds);
+    }
+    const rtdbTeamsSnap = await get(ref(rtdb, `auctions/${roomId}/teams`));
+    if (rtdbTeamsSnap.exists()) {
+      const teamsObj = rtdbTeamsSnap.val();
+      const teamKey = Object.keys(teamsObj).find(k => teamsObj[k].teamId === teamId);
+      if (teamKey) {
+        await updateRtdb(ref(rtdb, `auctions/${roomId}/teams/${teamKey}`), {
+          retainedIds
+        });
+      }
+    }
+  }, [currentAuction?.server]);
+
   const startAuction = useCallback(async (roomId) => {
     if (isHotspotRoomCode(roomId) || currentAuction?.server === 'local') {
       return await startLocalAuctionEngine(roomId);
@@ -428,16 +449,76 @@ export const AuctionProvider = ({ children }) => {
     const roomData = roomSnap.exists() ? roomSnap.val() : {};
     const auctionType = roomData.auctionType || 'mega';
 
+    // Process retentions for Mega and Mini auctions
+    const allRetainedIdsSet = new Set();
+    if (auctionType === 'mega' || auctionType === 'mini') {
+      const rtdbTeamsSnap = await get(ref(rtdb, `auctions/${roomId}/teams`));
+      if (rtdbTeamsSnap.exists()) {
+        const teamsData = rtdbTeamsSnap.val();
+        const teamUpdates = {};
+
+        for (const [teamKey, tVal] of Object.entries(teamsData)) {
+          const teamId = tVal.teamId;
+          if (!teamId) continue;
+          const rosterList = IPL_FRANCHISE_ROSTERS[teamId] || [];
+          let retainedList = [];
+          const isBot = tVal.userId?.startsWith('bot_') || tVal.isBot;
+          if (Array.isArray(tVal.retainedIds)) {
+            const retainedSet = new Set(tVal.retainedIds);
+            retainedList = rosterList.filter(p => retainedSet.has(p.id));
+          } else if (isBot) {
+            retainedList = rosterList.filter(p => p.defaultRetained);
+          } else {
+            retainedList = [];
+          }
+
+          if (auctionType === 'mega' && retainedList.length > 6) {
+            retainedList = retainedList.slice(0, 6);
+          }
+
+          const totalDeduction = retainedList.reduce((acc, p) => acc + (p.retentionPrice || 0), 0);
+          const remainingPurse = Math.max(0, 120.0 - totalDeduction);
+
+          const squad = retainedList.map(p => ({
+            id: p.id,
+            name: p.name,
+            role: p.role,
+            type: p.type,
+            country: p.country,
+            image: p.image,
+            rating: p.rating,
+            isRetained: true,
+            soldPrice: p.retentionPrice,
+            bid: p.retentionPrice,
+            boughtBy: teamId,
+            boughtByName: tVal.teamName || teamId
+          }));
+
+          retainedList.forEach(p => allRetainedIdsSet.add(p.id));
+
+          teamUpdates[`auctions/${roomId}/teams/${teamKey}/squad`] = squad;
+          teamUpdates[`auctions/${roomId}/teams/${teamKey}/budgetRemaining`] = remainingPurse;
+          teamUpdates[`auctions/${roomId}/teams/${teamKey}/spent`] = totalDeduction;
+        }
+
+        if (Object.keys(teamUpdates).length > 0) {
+          await updateRtdb(ref(rtdb), teamUpdates);
+        }
+      }
+    }
+
     // Calculate target players
     let targetPlayers = IPL_PLAYERS.length;
     if (auctionType === 'sprint11') targetPlayers = 150;
     else if (auctionType === 'sprint5') targetPlayers = 75;
+    else if (auctionType === 'sprint8') targetPlayers = 200;
 
-    // 1. Identify Marquee vs Non-Marquee players
+    // 1. Identify Marquee vs Non-Marquee players (excluding retained players)
     const marqueeIndices = [];
     const nonMarqueeIndicesByRole = {};
     
     IPL_PLAYERS.forEach((p, i) => {
+      if (allRetainedIdsSet.has(p.id) || allRetainedIdsSet.has(p.name)) return;
       if (p.set.includes('Marquee')) {
         marqueeIndices.push(i);
       } else {
@@ -1628,12 +1709,14 @@ export const AuctionProvider = ({ children }) => {
     const data = rtdbRoomSnap.val();
 
     const existingPlayers = data.players || [];
+    const maxParticipants = data.maxParticipants || (data.auctionType === 'sprint5' ? 5 : data.auctionType === 'sprint8' ? 8 : 10);
     const takenTeamIds = new Set(existingPlayers.map(p => p.team).filter(Boolean));
 
     const updatedPlayers = [...existingPlayers];
     const teamsToSet = {};
 
-    TEAMS.forEach(t => {
+    for (const t of TEAMS) {
+      if (updatedPlayers.length >= maxParticipants) break;
       if (!takenTeamIds.has(t.id)) {
         const botUserId = `bot_${t.id}`;
         const botName = `${t.name} Bot`;
@@ -1645,6 +1728,9 @@ export const AuctionProvider = ({ children }) => {
           isHost: false,
           isBot: true
         });
+        const defaultRetainedIds = (data.auctionType === 'mega' || data.auctionType === 'mini')
+          ? (IPL_FRANCHISE_ROSTERS[t.id] || []).filter(p => p.defaultRetained).map(p => p.id)
+          : [];
         teamsToSet[`${roomId}_${botUserId}`] = {
           auctionId: roomId,
           userId: botUserId,
@@ -1652,10 +1738,11 @@ export const AuctionProvider = ({ children }) => {
           teamName: t.name,
           budgetRemaining: toFiniteNumber(data.settings?.budget, 120.0),
           spent: 0,
-          squad: []
+          squad: [],
+          retainedIds: defaultRetainedIds
         };
       }
-    });
+    }
 
     await updateRtdb(ref(rtdb, `auctions/${roomId}/room`), { players: updatedPlayers });
 
@@ -1805,6 +1892,7 @@ export const AuctionProvider = ({ children }) => {
     addBotTeam,
     removeBotTeam,
     fillEmptyTeamsWithBots,
+    saveTeamRetentions,
     getSyncedTime
   };
 
