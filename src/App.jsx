@@ -1,5 +1,6 @@
 import React, { lazy, Suspense } from 'react'
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
+import { Analytics } from '@vercel/analytics/react'
 import { AuthProvider } from './contexts/AuthContext'
 import { AuctionProvider } from './contexts/AuctionContext'
 import { QuotaProvider } from './contexts/QuotaContext'
@@ -37,6 +38,7 @@ function App() {
   return (
     <Router>
       <ScrollToTop />
+      <Analytics />
       <QuotaProvider>
         <ConnectionAlertProvider>
           <AuthProvider>
